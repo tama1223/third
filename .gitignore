@@ -1,0 +1,39 @@
+# Unreal Engine generated
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# VS Code
+.vscode/
+
+# Compile commands
+compile_commands.json
+
+# Workspace
+*.code-workspace
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Crashpad
+*.dmp
+
+# Clangd / cache
+.cache/
+.clangd
+
+# VS config
+.vsconfig
