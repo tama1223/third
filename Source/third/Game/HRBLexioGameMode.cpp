@@ -4,6 +4,9 @@
 #include "HRBLexioGameState.h"
 #include "HRBLexioRuleEngine.h"
 #include "HRBLexioTypes.h"
+#include "HRBLexioPlayerController.h"
+#include "UI/HRBLexioHUD.h"
+#include "TimerManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(HRBLexioGameMode)
 
@@ -11,32 +14,19 @@ DEFINE_LOG_CATEGORY_STATIC(LogHRBLexio, Log, All);
 
 AHRBLexioGameMode::AHRBLexioGameMode()
 {
+	// Set default classes - no Blueprint dependency
+	PlayerControllerClass = AHRBLexioPlayerController::StaticClass();
+	HUDClass = AHRBLexioHUD::StaticClass();
 }
 
 void AHRBLexioGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	RunSimulation();
+	StartGame();
 }
 
-void AHRBLexioGameMode::LogPlayerHand(int32 PlayerIndex, const TArray<FHRBCardData>& Hand) const
-{
-	FString HandStr = TEXT("[");
-	for (int32 i = 0; i < Hand.Num(); ++i)
-	{
-		if (i > 0)
-		{
-			HandStr += TEXT(",");
-		}
-		HandStr += Hand[i].ToString();
-	}
-	HandStr += TEXT("]");
-
-	UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Player %d Hand: %s"), PlayerIndex, *HandStr);
-}
-
-void AHRBLexioGameMode::RunSimulation()
+void AHRBLexioGameMode::StartGame()
 {
 	// Create and initialize game state
 	LexioGameState = NewObject<UHRBLexioGameState>(this);
@@ -47,129 +37,187 @@ void AHRBLexioGameMode::RunSimulation()
 	// Log initial hands
 	for (int32 i = 0; i < UHRBLexioGameState::NUM_PLAYERS; ++i)
 	{
-		LogPlayerHand(i, LexioGameState->GetPlayerHand(i));
+		const TArray<FHRBCardData>& Hand = LexioGameState->GetPlayerHand(i);
+		FString HandStr = TEXT("[");
+		for (int32 j = 0; j < Hand.Num(); ++j)
+		{
+			if (j > 0) HandStr += TEXT(",");
+			HandStr += Hand[j].ToString();
+		}
+		HandStr += TEXT("]");
+		UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Player %d Hand: %s"), i, *HandStr);
 	}
 
 	UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] First player: Player %d"), LexioGameState->GetCurrentPlayerIndex());
 
-	UHRBLexioRuleEngine* RuleEngine = LexioGameState->GetRuleEngine();
-	int32 RoundNumber = 1;
-	int32 TurnCount = 0;
-	const int32 MaxTurns = 500; // Safety limit
-
-	UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] --- Round %d ---"), RoundNumber);
-
-	bool bPrevWasNewRound = false;
-
-	while (!LexioGameState->IsGameOver() && TurnCount < MaxTurns)
+	// Pass GameState to HUD
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (PC)
 	{
-		TurnCount++;
-		const int32 CurrentPlayer = LexioGameState->GetCurrentPlayerIndex();
-		const TArray<FHRBCardData>& Hand = LexioGameState->GetPlayerHand(CurrentPlayer);
-
-		if (Hand.Num() == 0)
+		AHRBLexioHUD* HUD = Cast<AHRBLexioHUD>(PC->GetHUD());
+		if (HUD)
 		{
-			// Should not happen, but safety check
-			break;
+			HUD->SetGameState(LexioGameState);
+		}
+	}
+
+	// If AI goes first, start their turn with delay
+	OnTurnAdvanced();
+}
+
+bool AHRBLexioGameMode::ProcessHumanTurn(const TArray<FHRBCardData>& SelectedCards)
+{
+	if (!LexioGameState || LexioGameState->IsGameOver())
+	{
+		return false;
+	}
+
+	if (LexioGameState->GetCurrentPlayerIndex() != HumanPlayerIndex)
+	{
+		return false;
+	}
+
+	bool bSuccess = LexioGameState->SubmitCombination(HumanPlayerIndex, SelectedCards);
+	if (bSuccess)
+	{
+		UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Human: Submit %d card(s)"), SelectedCards.Num());
+
+		if (LexioGameState->IsGameOver())
+		{
+			UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] === Game Over === Winner: Player %d"), LexioGameState->GetWinnerIndex());
+			return true;
 		}
 
-		// Determine what type we need to match
-		const FHRBPlayedCombination& TableTop = LexioGameState->GetCurrentTableCombination();
-		const bool bTableEmpty = !TableTop.IsValid();
+		OnTurnAdvanced();
+	}
 
-		if (bTableEmpty)
+	return bSuccess;
+}
+
+void AHRBLexioGameMode::ProcessHumanPass()
+{
+	if (!LexioGameState || LexioGameState->IsGameOver())
+	{
+		return;
+	}
+
+	if (LexioGameState->GetCurrentPlayerIndex() != HumanPlayerIndex)
+	{
+		return;
+	}
+
+	bool bSuccess = LexioGameState->Pass(HumanPlayerIndex);
+	if (bSuccess)
+	{
+		UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Human: Pass"));
+		OnTurnAdvanced();
+	}
+}
+
+void AHRBLexioGameMode::OnTurnAdvanced()
+{
+	if (LexioGameState->IsGameOver())
+	{
+		return;
+	}
+
+	const int32 CurrentPlayer = LexioGameState->GetCurrentPlayerIndex();
+	if (CurrentPlayer != HumanPlayerIndex)
+	{
+		// Schedule AI turn with delay
+		GetWorld()->GetTimerManager().SetTimer(
+			AITurnTimerHandle,
+			this,
+			&AHRBLexioGameMode::OnAITurnTimerFired,
+			AITurnDelay,
+			false);
+	}
+	// If human turn, just wait for UI input
+}
+
+void AHRBLexioGameMode::OnAITurnTimerFired()
+{
+	ProcessAITurn();
+}
+
+void AHRBLexioGameMode::ProcessAITurn()
+{
+	if (!LexioGameState || LexioGameState->IsGameOver())
+	{
+		return;
+	}
+
+	const int32 CurrentPlayer = LexioGameState->GetCurrentPlayerIndex();
+	if (CurrentPlayer == HumanPlayerIndex)
+	{
+		return; // Not AI's turn
+	}
+
+	const TArray<FHRBCardData>& Hand = LexioGameState->GetPlayerHand(CurrentPlayer);
+	UHRBLexioRuleEngine* RuleEngine = LexioGameState->GetRuleEngine();
+
+	if (Hand.Num() == 0)
+	{
+		return;
+	}
+
+	const FHRBPlayedCombination& TableTop = LexioGameState->GetCurrentTableCombination();
+	const bool bTableEmpty = !TableTop.IsValid();
+
+	if (bTableEmpty)
+	{
+		// New round: play the lowest combination
+		TArray<FHRBPlayedCombination> AllCombinations = RuleEngine->FindAllValidCombinations(Hand);
+		if (AllCombinations.Num() > 0)
 		{
-			// New round: find all combinations and play the lowest
-			TArray<FHRBPlayedCombination> AllCombinations = RuleEngine->FindAllValidCombinations(Hand);
-
-			if (AllCombinations.Num() > 0)
+			TArray<FHRBCardData> CardsToPlay = AllCombinations[0].Cards;
+			bool bSuccess = LexioGameState->SubmitCombination(CurrentPlayer, CardsToPlay);
+			if (bSuccess)
 			{
-				// Pick the lowest combination (first in sorted list)
-				const FHRBPlayedCombination& ToPlay = AllCombinations[0];
+				UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] AI %d: Submit %s"), CurrentPlayer, *AllCombinations[0].ToString());
+			}
+		}
+	}
+	else
+	{
+		// Try to beat the table
+		TArray<FHRBPlayedCombination> ValidCombinations = RuleEngine->FindAllValidCombinations(Hand, TableTop.Type);
 
-				// Extract card data for submission
-				TArray<FHRBCardData> CardsToPlay = ToPlay.Cards;
+		TArray<FHRBPlayedCombination> PlayableCombinations;
+		for (const FHRBPlayedCombination& Combo : ValidCombinations)
+		{
+			if (Combo.CanBeatOther(TableTop))
+			{
+				PlayableCombinations.Add(Combo);
+			}
+		}
 
-				bool bOldIsNewRound = LexioGameState->IsNewRound();
-				bool bSuccess = LexioGameState->SubmitCombination(CurrentPlayer, CardsToPlay);
-
-				if (bSuccess)
-				{
-					UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Player %d: Submit %s"), CurrentPlayer, *ToPlay.ToString());
-
-					if (LexioGameState->IsGameOver())
-					{
-						UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Player %d: Hand empty! Winner: Player %d"),
-							CurrentPlayer, LexioGameState->GetWinnerIndex());
-						break;
-					}
-				}
+		if (PlayableCombinations.Num() > 0)
+		{
+			TArray<FHRBCardData> CardsToPlay = PlayableCombinations[0].Cards;
+			bool bSuccess = LexioGameState->SubmitCombination(CurrentPlayer, CardsToPlay);
+			if (bSuccess)
+			{
+				UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] AI %d: Submit %s"), CurrentPlayer, *PlayableCombinations[0].ToString());
 			}
 		}
 		else
 		{
-			// Try to play a combination that beats the table
-			TArray<FHRBPlayedCombination> ValidCombinations = RuleEngine->FindAllValidCombinations(Hand, TableTop.Type);
-
-			// Filter to only those that can beat the table
-			TArray<FHRBPlayedCombination> PlayableCombinations;
-			for (const FHRBPlayedCombination& Combo : ValidCombinations)
+			// Pass
+			bool bSuccess = LexioGameState->Pass(CurrentPlayer);
+			if (bSuccess)
 			{
-				if (Combo.CanBeatOther(TableTop))
-				{
-					PlayableCombinations.Add(Combo);
-				}
-			}
-
-			if (PlayableCombinations.Num() > 0)
-			{
-				// Play the lowest valid combination
-				const FHRBPlayedCombination& ToPlay = PlayableCombinations[0];
-				TArray<FHRBCardData> CardsToPlay = ToPlay.Cards;
-
-				bool bSuccess = LexioGameState->SubmitCombination(CurrentPlayer, CardsToPlay);
-				if (bSuccess)
-				{
-					UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Player %d: Submit %s"), CurrentPlayer, *ToPlay.ToString());
-
-					if (LexioGameState->IsGameOver())
-					{
-						UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Player %d: Hand empty! Winner: Player %d"),
-							CurrentPlayer, LexioGameState->GetWinnerIndex());
-						break;
-					}
-				}
-			}
-			else
-			{
-				// Pass
-				int32 PassCountBefore = LexioGameState->GetConsecutivePassCount();
-				bool bSuccess = LexioGameState->Pass(CurrentPlayer);
-				if (bSuccess)
-				{
-					// Check if round ended (pass count reset means new round started)
-					if (LexioGameState->GetConsecutivePassCount() == 0)
-					{
-						UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Player %d: Pass (%d consecutive passes -> Round End)"),
-							CurrentPlayer, PassCountBefore + 1);
-
-						RoundNumber++;
-						UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] --- Round %d (Leader: Player %d) ---"),
-							RoundNumber, LexioGameState->GetCurrentPlayerIndex());
-					}
-					else
-					{
-						UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Player %d: Pass"), CurrentPlayer);
-					}
-				}
+				UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] AI %d: Pass"), CurrentPlayer);
 			}
 		}
 	}
 
-	if (TurnCount >= MaxTurns)
+	if (LexioGameState->IsGameOver())
 	{
-		UE_LOG(LogHRBLexio, Warning, TEXT("[HRBLexio] Simulation reached max turn limit (%d). Possible infinite loop."), MaxTurns);
+		UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] === Game Over === Winner: Player %d"), LexioGameState->GetWinnerIndex());
+		return;
 	}
 
-	UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] === Game Over ==="));
+	// Continue to next turn
+	OnTurnAdvanced();
 }
