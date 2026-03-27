@@ -106,10 +106,23 @@ void AHRBLexioGameMode::ProcessHumanPass()
 		return;
 	}
 
+	// Check if this pass will trigger a new round (NUM_PLAYERS - 1 consecutive passes)
+	const bool bWillTriggerNewRound = (LexioGameState->GetConsecutivePassCount() >= UHRBLexioGameState::NUM_PLAYERS - 2);
+
 	bool bSuccess = LexioGameState->Pass(HumanPlayerIndex);
 	if (bSuccess)
 	{
 		UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] Human: Pass"));
+
+		if (bWillTriggerNewRound && LexioGameState->IsNewRound())
+		{
+			ShowHUDMessage(TEXT("Round End! New round starts..."), 2.0f);
+		}
+		else
+		{
+			ShowHUDMessage(TEXT("You passed"), 1.5f);
+		}
+
 		OnTurnAdvanced();
 	}
 }
@@ -124,6 +137,9 @@ void AHRBLexioGameMode::OnTurnAdvanced()
 	const int32 CurrentPlayer = LexioGameState->GetCurrentPlayerIndex();
 	if (CurrentPlayer != HumanPlayerIndex)
 	{
+		// Show "thinking" message for AI turn
+		ShowHUDMessage(FString::Printf(TEXT("AI %d is thinking..."), CurrentPlayer), AITurnDelay + 0.5f);
+
 		// Schedule AI turn with delay
 		GetWorld()->GetTimerManager().SetTimer(
 			AITurnTimerHandle,
@@ -203,11 +219,22 @@ void AHRBLexioGameMode::ProcessAITurn()
 		}
 		else
 		{
-			// Pass
+			// Check if this pass will trigger a new round
+			const bool bWillTriggerNewRound = (LexioGameState->GetConsecutivePassCount() >= UHRBLexioGameState::NUM_PLAYERS - 2);
+
 			bool bSuccess = LexioGameState->Pass(CurrentPlayer);
 			if (bSuccess)
 			{
 				UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] AI %d: Pass"), CurrentPlayer);
+
+				if (bWillTriggerNewRound && LexioGameState->IsNewRound())
+				{
+					ShowHUDMessage(TEXT("Round End! New round starts..."), 2.0f);
+				}
+				else
+				{
+					ShowHUDMessage(FString::Printf(TEXT("AI %d passed"), CurrentPlayer), 1.5f);
+				}
 			}
 		}
 	}
@@ -220,4 +247,23 @@ void AHRBLexioGameMode::ProcessAITurn()
 
 	// Continue to next turn
 	OnTurnAdvanced();
+}
+
+void AHRBLexioGameMode::ShowHUDMessage(const FString& Message, float Duration)
+{
+	AHRBLexioHUD* HUD = GetLexioHUD();
+	if (HUD)
+	{
+		HUD->ShowStatusMessage(Message, Duration);
+	}
+}
+
+AHRBLexioHUD* AHRBLexioGameMode::GetLexioHUD() const
+{
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (PC)
+	{
+		return Cast<AHRBLexioHUD>(PC->GetHUD());
+	}
+	return nullptr;
 }

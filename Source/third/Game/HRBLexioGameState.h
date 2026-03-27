@@ -63,7 +63,16 @@ public:
 	/** Get the rule engine. */
 	UHRBLexioRuleEngine* GetRuleEngine() const { return RuleEngine; }
 
+	/** Get the current round number (1-based). */
+	int32 GetRoundNumber() const { return RoundNumber; }
+
 private:
+	/** Sort a player's hand by Lexio rank (3,4,5,6,7,8,9,1,2). */
+	void SortPlayerHand(int32 PlayerIndex);
+
+	/** Sort all players' hands. */
+	void SortAllPlayerHands();
+
 	/** Advance to the next player's turn. */
 	void AdvanceTurn();
 
@@ -92,6 +101,9 @@ private:
 
 	UPROPERTY()
 	int32 WinnerIndex = -1;
+
+	UPROPERTY()
+	int32 RoundNumber = 1;
 
 	UPROPERTY()
 	TObjectPtr<UHRBLexioRuleEngine> RuleEngine;

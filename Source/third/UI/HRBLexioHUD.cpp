@@ -66,6 +66,7 @@ void AHRBLexioHUD::DrawHUD()
 	}
 
 	DrawAIInfo();
+	DrawRoundInfo();
 	DrawTurnInfo();
 	DrawTableCombination();
 	DrawStatusMessage();
@@ -163,7 +164,26 @@ void AHRBLexioHUD::DrawTableCombination()
 			HUDFont, 1.2f);
 	}
 
-	// Draw combination type label below table cards
+	// Draw who played + combination type label below table cards
+	const int32 LastPlayer = GameState->GetLastSubmitPlayerIndex();
+	FString PlayerLabel;
+	FLinearColor PlayerColor;
+	if (LastPlayer == HumanPlayerIndex)
+	{
+		PlayerLabel = TEXT("You");
+		PlayerColor = FLinearColor(0.2f, 0.8f, 0.3f); // 초록
+	}
+	else if (LastPlayer == 1)
+	{
+		PlayerLabel = TEXT("AI 1");
+		PlayerColor = FLinearColor(1.0f, 0.4f, 0.4f); // 빨강
+	}
+	else if (LastPlayer == 2)
+	{
+		PlayerLabel = TEXT("AI 2");
+		PlayerColor = FLinearColor(0.4f, 0.6f, 1.0f); // 파랑
+	}
+
 	FString TypeLabel;
 	switch (TableCombo.Type)
 	{
@@ -173,11 +193,12 @@ void AHRBLexioHUD::DrawTableCombination()
 	default: TypeLabel = TEXT(""); break;
 	}
 
-	if (!TypeLabel.IsEmpty())
+	// "AI 1 - Pair" 형태로 표시
+	FString FullLabel = FString::Printf(TEXT("%s - %s"), *PlayerLabel, *TypeLabel);
 	{
 		float TextW, TextH;
-		GetTextSize(TypeLabel, TextW, TextH, HUDFont, 1.0f);
-		DrawText(TypeLabel, FLinearColor(0.3f, 0.3f, 0.3f),
+		GetTextSize(FullLabel, TextW, TextH, HUDFont, 1.0f);
+		DrawText(FullLabel, PlayerColor,
 			CenterX - TextW * 0.5f,
 			CenterY + TableCardHeight * 0.5f + 10.0f,
 			HUDFont, 1.0f);
@@ -318,6 +339,11 @@ void AHRBLexioHUD::DrawGameOverMessage()
 	const float CenterX = CachedViewportSize.X * 0.5f;
 	const float CenterY = CachedViewportSize.Y * 0.5f;
 
+	// Full-screen dark overlay
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.75f),
+		0.0f, 0.0f, CachedViewportSize.X, CachedViewportSize.Y);
+
+	// Winner text
 	const int32 Winner = GameState->GetWinnerIndex();
 	FString WinnerText;
 	if (Winner == HumanPlayerIndex)
@@ -329,19 +355,55 @@ void AHRBLexioHUD::DrawGameOverMessage()
 		WinnerText = FString::Printf(TEXT("AI %d Wins!"), Winner);
 	}
 
-	float TextW, TextH;
-	GetTextSize(WinnerText, TextW, TextH, HUDFont, 2.0f);
-
-	// Dark overlay background
-	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.7f),
-		CenterX - TextW * 0.5f - 30.0f, CenterY - TextH * 0.5f - 20.0f,
-		TextW + 60.0f, TextH + 40.0f);
-
 	const FLinearColor WinColor = (Winner == HumanPlayerIndex)
 		? FLinearColor(1.0f, 0.85f, 0.0f)
 		: FLinearColor(1.0f, 0.4f, 0.4f);
 
-	DrawText(WinnerText, WinColor, CenterX - TextW * 0.5f, CenterY - TextH * 0.5f, HUDFont, 2.0f);
+	float TextW, TextH;
+	GetTextSize(WinnerText, TextW, TextH, HUDFont, 2.5f);
+	DrawText(WinnerText, WinColor, CenterX - TextW * 0.5f, CenterY - 60.0f, HUDFont, 2.5f);
+
+	// Remaining cards for each player
+	const float InfoStartY = CenterY + 20.0f;
+	const float LineHeight = 30.0f;
+
+	for (int32 i = 0; i < UHRBLexioGameState::NUM_PLAYERS; ++i)
+	{
+		const int32 CardsLeft = GameState->GetPlayerHand(i).Num();
+		FString PlayerName;
+		if (i == HumanPlayerIndex)
+		{
+			PlayerName = TEXT("You");
+		}
+		else
+		{
+			PlayerName = FString::Printf(TEXT("AI %d"), i);
+		}
+
+		FString InfoText = FString::Printf(TEXT("%s: %d cards remaining"), *PlayerName, CardsLeft);
+		FLinearColor InfoColor = (i == Winner) ? FLinearColor(0.3f, 1.0f, 0.3f) : FLinearColor(0.8f, 0.8f, 0.8f);
+
+		float InfoW, InfoH;
+		GetTextSize(InfoText, InfoW, InfoH, HUDFont, 1.2f);
+		DrawText(InfoText, InfoColor, CenterX - InfoW * 0.5f, InfoStartY + i * LineHeight, HUDFont, 1.2f);
+	}
+
+	// "GAME OVER" subtitle
+	FString GameOverText = TEXT("GAME OVER");
+	float GOW, GOH;
+	GetTextSize(GameOverText, GOW, GOH, HUDFont, 1.0f);
+	DrawText(GameOverText, FLinearColor(0.6f, 0.6f, 0.6f), CenterX - GOW * 0.5f, CenterY - 90.0f, HUDFont, 1.0f);
+}
+
+void AHRBLexioHUD::DrawRoundInfo()
+{
+	const float CenterX = CachedViewportSize.X * 0.5f;
+	const float TopY = 30.0f;
+
+	const FString RoundText = FString::Printf(TEXT("Round %d"), GameState->GetRoundNumber());
+	float TextW, TextH;
+	GetTextSize(RoundText, TextW, TextH, HUDFont, 1.0f);
+	DrawText(RoundText, FLinearColor(0.8f, 0.8f, 0.4f), CenterX - TextW * 0.5f, TopY, HUDFont, 1.0f);
 }
 
 FVector2D AHRBLexioHUD::GetCardPosition(int32 Index, int32 TotalCards) const

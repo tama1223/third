@@ -45,6 +45,7 @@ private:
 	void DrawStatusMessage();
 	void DrawGameOverMessage();
 	void DrawTurnInfo();
+	void DrawRoundInfo();
 
 	// --- Hit Test Helpers ---
 	FVector2D GetCardPosition(int32 Index, int32 TotalCards) const;

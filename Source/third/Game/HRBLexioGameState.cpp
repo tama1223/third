@@ -21,6 +21,9 @@ void UHRBLexioGameState::InitGame()
 		PlayerHands[i] = DealtHands[i];
 	}
 
+	// Sort all player hands by Lexio rank
+	SortAllPlayerHands();
+
 	// Random first player
 	CurrentPlayerIndex = FMath::RandRange(0, NUM_PLAYERS - 1);
 
@@ -30,6 +33,7 @@ void UHRBLexioGameState::InitGame()
 	ConsecutivePassCount = 0;
 	bGameOver = false;
 	WinnerIndex = -1;
+	RoundNumber = 1;
 }
 
 bool UHRBLexioGameState::SubmitCombination(int32 PlayerIndex, const TArray<FHRBCardData>& SelectedCards)
@@ -74,6 +78,9 @@ bool UHRBLexioGameState::SubmitCombination(int32 PlayerIndex, const TArray<FHRBC
 			return HandCard == Card;
 		});
 	}
+
+	// Re-sort hand after card removal
+	SortPlayerHand(PlayerIndex);
 
 	// Update table state
 	CurrentTableCombination = Attempt;
@@ -134,6 +141,7 @@ void UHRBLexioGameState::StartNewRound()
 {
 	CurrentTableCombination = FHRBPlayedCombination();
 	ConsecutivePassCount = 0;
+	RoundNumber++;
 
 	// Last submitter starts the new round
 	if (LastSubmitPlayerIndex >= 0)
@@ -151,4 +159,25 @@ bool UHRBLexioGameState::CheckWinCondition(int32 PlayerIndex)
 		return true;
 	}
 	return false;
+}
+
+void UHRBLexioGameState::SortPlayerHand(int32 PlayerIndex)
+{
+	check(PlayerIndex >= 0 && PlayerIndex < NUM_PLAYERS);
+	PlayerHands[PlayerIndex].Sort([](const FHRBCardData& A, const FHRBCardData& B)
+	{
+		if (A.GetRank() != B.GetRank())
+		{
+			return A.GetRank() < B.GetRank();
+		}
+		return A.InstanceId < B.InstanceId;
+	});
+}
+
+void UHRBLexioGameState::SortAllPlayerHands()
+{
+	for (int32 i = 0; i < NUM_PLAYERS; ++i)
+	{
+		SortPlayerHand(i);
+	}
 }

@@ -7,6 +7,7 @@
 #include "HRBLexioGameMode.generated.h"
 
 class UHRBLexioGameState;
+class AHRBLexioHUD;
 struct FHRBCardData;
 
 /**
@@ -48,6 +49,12 @@ private:
 
 	/** Timer callback for AI turn delay. */
 	void OnAITurnTimerFired();
+
+	/** Show a status message on the HUD. */
+	void ShowHUDMessage(const FString& Message, float Duration = 2.0f);
+
+	/** Get the HUD instance. */
+	AHRBLexioHUD* GetLexioHUD() const;
 
 	UPROPERTY()
 	TObjectPtr<UHRBLexioGameState> LexioGameState;
