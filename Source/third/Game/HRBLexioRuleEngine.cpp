@@ -49,10 +49,10 @@ TArray<TArray<FHRBCardData>> UHRBLexioRuleEngine::DealCards(const TArray<FHRBCar
 			Hands[PlayerIdx].Add(Deck[StartIdx + CardIdx]);
 		}
 
-		// Sort each hand by number for readability
+		// Sort each hand by rank for readability (Lexio order: 3 < 4 < ... < 9 < 1 < 2)
 		Hands[PlayerIdx].Sort([](const FHRBCardData& A, const FHRBCardData& B)
 		{
-			return A.Number < B.Number;
+			return A.GetRank() < B.GetRank();
 		});
 	}
 
@@ -126,14 +126,14 @@ FHRBPlayedCombination UHRBLexioRuleEngine::MakePlayedCombination(const TArray<FH
 
 	if (Combination.Type != EHRBCardCombinationType::None)
 	{
-		// RankValue is the card number (all cards in a valid combination have the same number,
-		// or it's a single card)
-		int32 MaxNumber = 0;
+		// RankValue is the card rank based on Lexio ordering (3 weakest, 2 strongest).
+		// All cards in a valid combination have the same number, so use GetRank().
+		int32 MaxRank = -1;
 		for (const FHRBCardData& Card : Cards)
 		{
-			MaxNumber = FMath::Max(MaxNumber, Card.Number);
+			MaxRank = FMath::Max(MaxRank, Card.GetRank());
 		}
-		Combination.RankValue = MaxNumber;
+		Combination.RankValue = MaxRank;
 	}
 
 	return Combination;

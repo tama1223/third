@@ -36,6 +36,13 @@ struct FHRBCardData
 	bool operator==(const FHRBCardData& Other) const;
 	bool operator<(const FHRBCardData& Other) const;
 
+	/**
+	 * Returns the rank of this card for comparison purposes.
+	 * Lexio ranking: 3(weakest) < 4 < 5 < 6 < 7 < 8 < 9 < 1 < 2(strongest)
+	 * Rank 0 = Number 3, Rank 1 = Number 4, ... Rank 6 = Number 9, Rank 7 = Number 1, Rank 8 = Number 2
+	 */
+	int32 GetRank() const;
+
 	FString ToString() const;
 };
 
@@ -53,7 +60,7 @@ struct FHRBPlayedCombination
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FHRBCardData> Cards;
 
-	/** The rank value used for comparison (highest card number in the combination) */
+	/** The rank value used for comparison (highest card rank in the combination, based on Lexio ranking) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 RankValue = 0;
 

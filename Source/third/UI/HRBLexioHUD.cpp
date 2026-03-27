@@ -54,6 +54,12 @@ void AHRBLexioHUD::DrawHUD()
 {
 	Super::DrawHUD();
 
+	// Cache viewport size for use outside DrawHUD (e.g., HandleClick)
+	if (Canvas)
+	{
+		CachedViewportSize = FVector2D(Canvas->SizeX, Canvas->SizeY);
+	}
+
 	if (!GameState)
 	{
 		return;
@@ -114,8 +120,8 @@ void AHRBLexioHUD::DrawTableCombination()
 {
 	const FHRBPlayedCombination& TableCombo = GameState->GetCurrentTableCombination();
 
-	const float CenterX = Canvas->SizeX * 0.5f;
-	const float CenterY = Canvas->SizeY * 0.4f;
+	const float CenterX = CachedViewportSize.X * 0.5f;
+	const float CenterY = CachedViewportSize.Y * 0.4f;
 
 	if (!TableCombo.IsValid())
 	{
@@ -196,13 +202,13 @@ void AHRBLexioHUD::DrawAIInfo()
 		const FString Text = FString::Printf(TEXT("AI 2: %d cards"), HandCount);
 		float TextW, TextH;
 		GetTextSize(Text, TextW, TextH, HUDFont, 1.0f);
-		DrawText(Text, FLinearColor::White, Canvas->SizeX - Margin - TextW, TopY, HUDFont, 1.0f);
+		DrawText(Text, FLinearColor::White, CachedViewportSize.X - Margin - TextW, TopY, HUDFont, 1.0f);
 	}
 }
 
 void AHRBLexioHUD::DrawTurnInfo()
 {
-	const float CenterX = Canvas->SizeX * 0.5f;
+	const float CenterX = CachedViewportSize.X * 0.5f;
 	const float TopY = 60.0f;
 
 	// Current turn
@@ -235,8 +241,8 @@ void AHRBLexioHUD::DrawButtons()
 		return;
 	}
 
-	const float CenterX = Canvas->SizeX * 0.5f;
-	const float BottomY = Canvas->SizeY - 50.0f;
+	const float CenterX = CachedViewportSize.X * 0.5f;
+	const float BottomY = CachedViewportSize.Y - 50.0f;
 
 	// Submit button
 	SubmitButtonSize = FVector2D(ButtonWidth, ButtonHeight);
@@ -287,8 +293,8 @@ void AHRBLexioHUD::DrawStatusMessage()
 		return;
 	}
 
-	const float CenterX = Canvas->SizeX * 0.5f;
-	const float Y = Canvas->SizeY * 0.55f;
+	const float CenterX = CachedViewportSize.X * 0.5f;
+	const float Y = CachedViewportSize.Y * 0.55f;
 
 	float TextW, TextH;
 	GetTextSize(CurrentStatusMessage, TextW, TextH, HUDFont, 1.0f);
@@ -309,8 +315,8 @@ void AHRBLexioHUD::DrawGameOverMessage()
 		return;
 	}
 
-	const float CenterX = Canvas->SizeX * 0.5f;
-	const float CenterY = Canvas->SizeY * 0.5f;
+	const float CenterX = CachedViewportSize.X * 0.5f;
+	const float CenterY = CachedViewportSize.Y * 0.5f;
 
 	const int32 Winner = GameState->GetWinnerIndex();
 	FString WinnerText;
@@ -340,9 +346,13 @@ void AHRBLexioHUD::DrawGameOverMessage()
 
 FVector2D AHRBLexioHUD::GetCardPosition(int32 Index, int32 TotalCards) const
 {
+	// Canvas is only valid during DrawHUD(). Use cached viewport size otherwise.
+	float ViewportW = CachedViewportSize.X;
+	float ViewportH = CachedViewportSize.Y;
+
 	const float TotalWidth = TotalCards * CardWidth + (TotalCards - 1) * CardSpacing;
-	const float StartX = (Canvas->SizeX - TotalWidth) * 0.5f;
-	const float Y = Canvas->SizeY - CardHeight - 100.0f;
+	const float StartX = (ViewportW - TotalWidth) * 0.5f;
+	const float Y = ViewportH - CardHeight - 100.0f;
 
 	return FVector2D(StartX + Index * (CardWidth + CardSpacing), Y);
 }

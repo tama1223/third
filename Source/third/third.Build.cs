@@ -7,7 +7,10 @@ public class third : ModuleRules
 	public third(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
+
+		// 서브디렉토리 간 include 허용 (Game/, UI/ 등)
+		PublicIncludePaths.AddRange(new string[] { ModuleDirectory });
+
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "UMG" });

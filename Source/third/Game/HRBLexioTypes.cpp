@@ -13,7 +13,26 @@ bool FHRBCardData::operator==(const FHRBCardData& Other) const
 
 bool FHRBCardData::operator<(const FHRBCardData& Other) const
 {
-	return Number < Other.Number;
+	return GetRank() < Other.GetRank();
+}
+
+int32 FHRBCardData::GetRank() const
+{
+	// Lexio ranking: 3(weakest=0) < 4(1) < 5(2) < 6(3) < 7(4) < 8(5) < 9(6) < 1(7) < 2(strongest=8)
+	if (Number >= 3 && Number <= 9)
+	{
+		return Number - 3; // 3->0, 4->1, ..., 9->6
+	}
+	if (Number == 1)
+	{
+		return 7;
+	}
+	if (Number == 2)
+	{
+		return 8;
+	}
+	// Fallback for invalid numbers
+	return -1;
 }
 
 FString FHRBCardData::ToString() const

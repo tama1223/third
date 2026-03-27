@@ -88,4 +88,7 @@ private:
 	/** Font for drawing text. */
 	UPROPERTY()
 	TObjectPtr<UFont> HUDFont;
+
+	/** Cached viewport size (updated each DrawHUD frame). */
+	FVector2D CachedViewportSize = FVector2D::ZeroVector;
 };
