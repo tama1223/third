@@ -65,10 +65,14 @@ void AHRBLexioHUD::DrawHUD()
 		return;
 	}
 
+	// 배경 (어두운 녹색 테이블)
+	DrawRect(FLinearColor(0.05f, 0.15f, 0.08f), 0.0f, 0.0f, CachedViewportSize.X, CachedViewportSize.Y);
+
 	DrawAIInfo();
 	DrawRoundInfo();
 	DrawTurnInfo();
 	DrawTableCombination();
+	DrawRankLegend();
 	DrawStatusMessage();
 	DrawPlayerHand();
 	DrawButtons();
@@ -119,14 +123,14 @@ void AHRBLexioHUD::DrawPlayerHand()
 
 void AHRBLexioHUD::DrawTableCombination()
 {
-	const FHRBPlayedCombination& TableCombo = GameState->GetCurrentTableCombination();
-
 	const float CenterX = CachedViewportSize.X * 0.5f;
 	const float CenterY = CachedViewportSize.Y * 0.4f;
 
-	if (!TableCombo.IsValid())
+	const auto& History = GameState->GetRoundHistory();
+	const FHRBPlayedCombination& TableCombo = GameState->GetCurrentTableCombination();
+
+	if (!TableCombo.IsValid() && History.Num() == 0)
 	{
-		// Draw "New Round" text
 		const FString Text = TEXT("New Round - Play any combination");
 		float TextW, TextH;
 		GetTextSize(Text, TextW, TextH, HUDFont, 1.0f);
@@ -134,34 +138,83 @@ void AHRBLexioHUD::DrawTableCombination()
 		return;
 	}
 
-	// Draw table cards
-	const int32 NumCards = TableCombo.Cards.Num();
-	const float TotalWidth = NumCards * TableCardWidth + (NumCards - 1) * CardSpacing;
-	const float StartX = CenterX - TotalWidth * 0.5f;
+	// 히스토리 전체를 가로로 나열 (이전 → 현재)
+	const float HistoryCardW = 65.0f;
+	const float HistoryCardH = 85.0f;
+	const float GroupGap = 40.0f;  // 제출 그룹 간 간격
+	const float InnerGap = 6.0f;   // 같은 제출 내 카드 간격
+	const float BT = 2.0f;
 
-	for (int32 i = 0; i < NumCards; ++i)
+	// 전체 폭 계산
+	float TotalWidth = 0.0f;
+	for (int32 g = 0; g < History.Num(); ++g)
 	{
-		const float CardX = StartX + i * (TableCardWidth + CardSpacing);
-		const float CardY = CenterY - TableCardHeight * 0.5f;
+		const int32 NumCards = History[g].Combination.Cards.Num();
+		TotalWidth += NumCards * HistoryCardW + (NumCards - 1) * InnerGap;
+		if (g < History.Num() - 1)
+		{
+			TotalWidth += GroupGap;
+		}
+	}
 
-		// Card background (light blue)
-		DrawRect(FLinearColor(0.85f, 0.92f, 1.0f), CardX, CardY, TableCardWidth, TableCardHeight);
+	float DrawX = CenterX - TotalWidth * 0.5f;
+	const float DrawY = CenterY - HistoryCardH * 0.5f;
 
-		// Border
-		const float BT = 2.0f;
-		DrawRect(FLinearColor(0.2f, 0.4f, 0.7f), CardX, CardY, TableCardWidth, BT);
-		DrawRect(FLinearColor(0.2f, 0.4f, 0.7f), CardX, CardY + TableCardHeight - BT, TableCardWidth, BT);
-		DrawRect(FLinearColor(0.2f, 0.4f, 0.7f), CardX, CardY, BT, TableCardHeight);
-		DrawRect(FLinearColor(0.2f, 0.4f, 0.7f), CardX + TableCardWidth - BT, CardY, BT, TableCardHeight);
+	for (int32 g = 0; g < History.Num(); ++g)
+	{
+		const auto& Entry = History[g];
+		const bool bIsLatest = (g == History.Num() - 1);
 
-		// Number
-		const FString NumStr = FString::Printf(TEXT("%d"), TableCombo.Cards[i].Number);
-		float TextW, TextH;
-		GetTextSize(NumStr, TextW, TextH, HUDFont, 1.2f);
-		DrawText(NumStr, FLinearColor(0.1f, 0.1f, 0.3f),
-			CardX + (TableCardWidth - TextW) * 0.5f,
-			CardY + (TableCardHeight - TextH) * 0.5f,
-			HUDFont, 1.2f);
+		// 플레이어 색상
+		FLinearColor PColor;
+		FString PName;
+		if (Entry.PlayerIndex == HumanPlayerIndex) { PColor = FLinearColor(0.2f, 0.8f, 0.3f); PName = TEXT("You"); }
+		else if (Entry.PlayerIndex == 1) { PColor = FLinearColor(1.0f, 0.4f, 0.4f); PName = TEXT("AI1"); }
+		else { PColor = FLinearColor(0.4f, 0.6f, 1.0f); PName = TEXT("AI2"); }
+
+		// 플레이어 이름 위에 표시
+		float NameW, NameH;
+		GetTextSize(PName, NameW, NameH, HUDFont, 0.9f);
+		DrawText(PName, PColor, DrawX, DrawY - 25.0f, HUDFont, 0.9f);
+
+		for (int32 c = 0; c < Entry.Combination.Cards.Num(); ++c)
+		{
+			const float CardX = DrawX + c * (HistoryCardW + InnerGap);
+
+			// 이전 제출은 반투명, 최신은 불투명
+			const float Alpha = bIsLatest ? 1.0f : 0.5f;
+			const FLinearColor CardBg = bIsLatest
+				? FLinearColor(0.85f, 0.92f, 1.0f, Alpha)
+				: FLinearColor(0.7f, 0.75f, 0.8f, Alpha);
+			const FLinearColor BorderCol = bIsLatest
+				? FLinearColor(0.2f, 0.4f, 0.7f, Alpha)
+				: FLinearColor(0.4f, 0.4f, 0.5f, Alpha);
+
+			DrawRect(CardBg, CardX, DrawY, HistoryCardW, HistoryCardH);
+			DrawRect(BorderCol, CardX, DrawY, HistoryCardW, BT);
+			DrawRect(BorderCol, CardX, DrawY + HistoryCardH - BT, HistoryCardW, BT);
+			DrawRect(BorderCol, CardX, DrawY, BT, HistoryCardH);
+			DrawRect(BorderCol, CardX + HistoryCardW - BT, DrawY, BT, HistoryCardH);
+
+			const FString NumStr = FString::Printf(TEXT("%d"), Entry.Combination.Cards[c].Number);
+			float TextW, TextH;
+			GetTextSize(NumStr, TextW, TextH, HUDFont, 1.5f);
+			const FLinearColor TextCol = FLinearColor::Black;
+			DrawText(NumStr, TextCol,
+				CardX + (HistoryCardW - TextW) * 0.5f,
+				DrawY + (HistoryCardH - TextH) * 0.5f,
+				HUDFont, 1.5f);
+		}
+
+		DrawX += Entry.Combination.Cards.Num() * (HistoryCardW + InnerGap) - InnerGap;
+
+		// 그룹 사이에 화살표
+		if (g < History.Num() - 1)
+		{
+			DrawText(TEXT(">"), FLinearColor(0.6f, 0.6f, 0.4f),
+				DrawX + GroupGap * 0.25f, DrawY + HistoryCardH * 0.5f - 12.0f, HUDFont, 1.2f);
+			DrawX += GroupGap;
+		}
 	}
 
 	// Draw who played + combination type label below table cards
@@ -208,22 +261,68 @@ void AHRBLexioHUD::DrawTableCombination()
 void AHRBLexioHUD::DrawAIInfo()
 {
 	const float Margin = 30.0f;
-	const float TopY = 30.0f;
+	const float TopY = 50.0f;
+	const float AICardW = 35.0f;
+	const float AICardH = 48.0f;
+	const float AICardGap = 4.0f;
+	const FLinearColor CardBackColor(0.3f, 0.3f, 0.6f);  // 어두운 파란 뒷면
+	const FLinearColor CardBorderColor(0.15f, 0.15f, 0.35f);
+	const float BT = 1.5f;
 
 	// AI Player 1 (left side)
 	{
 		const int32 HandCount = GameState->GetPlayerHand(1).Num();
-		const FString Text = FString::Printf(TEXT("AI 1: %d cards"), HandCount);
-		DrawText(Text, FLinearColor::White, Margin, TopY, HUDFont, 1.0f);
+
+		// Label
+		const FString Label = TEXT("AI 1");
+		DrawText(Label, FLinearColor(1.0f, 0.4f, 0.4f), Margin, TopY - 20.0f, HUDFont, 0.8f);
+
+		// Draw card backs
+		for (int32 i = 0; i < HandCount; ++i)
+		{
+			const float CardX = Margin + i * (AICardW + AICardGap);
+			const float CardY = TopY;
+
+			// Card back
+			DrawRect(CardBackColor, CardX, CardY, AICardW, AICardH);
+
+			// Border
+			DrawRect(CardBorderColor, CardX, CardY, AICardW, BT);
+			DrawRect(CardBorderColor, CardX, CardY + AICardH - BT, AICardW, BT);
+			DrawRect(CardBorderColor, CardX, CardY, BT, AICardH);
+			DrawRect(CardBorderColor, CardX + AICardW - BT, CardY, BT, AICardH);
+		}
 	}
 
 	// AI Player 2 (right side)
 	{
 		const int32 HandCount = GameState->GetPlayerHand(2).Num();
-		const FString Text = FString::Printf(TEXT("AI 2: %d cards"), HandCount);
-		float TextW, TextH;
-		GetTextSize(Text, TextW, TextH, HUDFont, 1.0f);
-		DrawText(Text, FLinearColor::White, CachedViewportSize.X - Margin - TextW, TopY, HUDFont, 1.0f);
+
+		// Total width of AI2 cards
+		const float TotalW = HandCount * AICardW + (HandCount > 0 ? (HandCount - 1) * AICardGap : 0.0f);
+		const float StartX = CachedViewportSize.X - Margin - TotalW;
+
+		// Label
+		const FString Label = TEXT("AI 2");
+		float LabelW, LabelH;
+		GetTextSize(Label, LabelW, LabelH, HUDFont, 0.8f);
+		DrawText(Label, FLinearColor(0.4f, 0.6f, 1.0f), CachedViewportSize.X - Margin - LabelW, TopY - 20.0f, HUDFont, 0.8f);
+
+		// Draw card backs
+		for (int32 i = 0; i < HandCount; ++i)
+		{
+			const float CardX = StartX + i * (AICardW + AICardGap);
+			const float CardY = TopY;
+
+			// Card back
+			DrawRect(CardBackColor, CardX, CardY, AICardW, AICardH);
+
+			// Border
+			DrawRect(CardBorderColor, CardX, CardY, AICardW, BT);
+			DrawRect(CardBorderColor, CardX, CardY + AICardH - BT, AICardW, BT);
+			DrawRect(CardBorderColor, CardX, CardY, BT, AICardH);
+			DrawRect(CardBorderColor, CardX + AICardW - BT, CardY, BT, AICardH);
+		}
 	}
 }
 
@@ -393,6 +492,63 @@ void AHRBLexioHUD::DrawGameOverMessage()
 	float GOW, GOH;
 	GetTextSize(GameOverText, GOW, GOH, HUDFont, 1.0f);
 	DrawText(GameOverText, FLinearColor(0.6f, 0.6f, 0.6f), CenterX - GOW * 0.5f, CenterY - 90.0f, HUDFont, 1.0f);
+}
+
+void AHRBLexioHUD::DrawRankLegend()
+{
+	// 화면 좌측 중간에 카드 모양으로 서열 표시
+	const float StartX = 20.0f;
+	const float StartY = CachedViewportSize.Y * 0.45f;
+	const float LegendCardW = 50.0f;
+	const float LegendCardH = 68.0f;
+	const float LegendGap = 8.0f;
+	const float BT = 1.5f;
+
+	// "Rank" 라벨
+	DrawText(TEXT("Rank (weak -> strong)"), FLinearColor(0.7f, 0.7f, 0.5f), StartX, StartY - 30.0f, HUDFont, 1.0f);
+
+	// 족보 종류 표시 (카드 아래)
+	const float ComboY = StartY + LegendCardH + 15.0f;
+	DrawText(TEXT("Single: 1 card  |  Pair: same x2  |  Triple: same x3"),
+		FLinearColor(0.6f, 0.6f, 0.45f, 0.9f), StartX, ComboY, HUDFont, 0.9f);
+
+	// 서열 순서: 3,4,5,6,7,8,9,1,2
+	const int32 RankOrder[] = { 3, 4, 5, 6, 7, 8, 9, 1, 2 };
+
+	for (int32 i = 0; i < 9; ++i)
+	{
+		const float CardX = StartX + i * (LegendCardW + LegendGap);
+		const float CardY = StartY;
+
+		// 카드 배경 (약한 쪽은 어둡고 강한 쪽은 밝게)
+		const float Brightness = 0.6f + 0.4f * (static_cast<float>(i) / 8.0f);
+		const FLinearColor CardBg(Brightness * 0.9f, Brightness * 0.95f, Brightness, 0.9f);
+		DrawRect(CardBg, CardX, CardY, LegendCardW, LegendCardH);
+
+		// 테두리
+		const FLinearColor BorderColor(0.3f, 0.35f, 0.3f);
+		DrawRect(BorderColor, CardX, CardY, LegendCardW, BT);
+		DrawRect(BorderColor, CardX, CardY + LegendCardH - BT, LegendCardW, BT);
+		DrawRect(BorderColor, CardX, CardY, BT, LegendCardH);
+		DrawRect(BorderColor, CardX + LegendCardW - BT, CardY, BT, LegendCardH);
+
+		// 숫자
+		const FString NumStr = FString::Printf(TEXT("%d"), RankOrder[i]);
+		float TextW, TextH;
+		GetTextSize(NumStr, TextW, TextH, HUDFont, 1.2f);
+		DrawText(NumStr, FLinearColor::Black,
+			CardX + (LegendCardW - TextW) * 0.5f,
+			CardY + (LegendCardH - TextH) * 0.5f,
+			HUDFont, 1.2f);
+
+		// 화살표 (마지막 카드 뒤에는 안 그림)
+		if (i < 8)
+		{
+			const float ArrowX = CardX + LegendCardW + 1.0f;
+			DrawText(TEXT("<"), FLinearColor(0.6f, 0.6f, 0.4f),
+				ArrowX, CardY + LegendCardH * 0.5f - 10.0f, HUDFont, 0.9f);
+		}
+	}
 }
 
 void AHRBLexioHUD::DrawRoundInfo()

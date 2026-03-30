@@ -34,6 +34,7 @@ void UHRBLexioGameState::InitGame()
 	bGameOver = false;
 	WinnerIndex = -1;
 	RoundNumber = 1;
+	RoundHistory.Empty();
 }
 
 bool UHRBLexioGameState::SubmitCombination(int32 PlayerIndex, const TArray<FHRBCardData>& SelectedCards)
@@ -86,6 +87,9 @@ bool UHRBLexioGameState::SubmitCombination(int32 PlayerIndex, const TArray<FHRBC
 	CurrentTableCombination = Attempt;
 	LastSubmitPlayerIndex = PlayerIndex;
 	ConsecutivePassCount = 0;
+
+	// Add to round history
+	RoundHistory.Add({ PlayerIndex, Attempt });
 
 	// Check win condition
 	if (CheckWinCondition(PlayerIndex))
@@ -142,6 +146,7 @@ void UHRBLexioGameState::StartNewRound()
 	CurrentTableCombination = FHRBPlayedCombination();
 	ConsecutivePassCount = 0;
 	RoundNumber++;
+	RoundHistory.Empty();
 
 	// Last submitter starts the new round
 	if (LastSubmitPlayerIndex >= 0)

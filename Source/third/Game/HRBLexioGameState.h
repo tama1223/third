@@ -66,6 +66,16 @@ public:
 	/** Get the current round number (1-based). */
 	int32 GetRoundNumber() const { return RoundNumber; }
 
+	/** Round history entry: who played what. */
+	struct FRoundHistoryEntry
+	{
+		int32 PlayerIndex;
+		FHRBPlayedCombination Combination;
+	};
+
+	/** Get the current round's submission history. */
+	const TArray<FRoundHistoryEntry>& GetRoundHistory() const { return RoundHistory; }
+
 private:
 	/** Sort a player's hand by Lexio rank (3,4,5,6,7,8,9,1,2). */
 	void SortPlayerHand(int32 PlayerIndex);
@@ -107,4 +117,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UHRBLexioRuleEngine> RuleEngine;
+
+	/** History of submissions in the current round. Cleared on new round. */
+	TArray<FRoundHistoryEntry> RoundHistory;
 };
