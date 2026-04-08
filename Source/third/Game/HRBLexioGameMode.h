@@ -56,6 +56,12 @@ private:
 	/** Get the HUD instance. */
 	AHRBLexioHUD* GetLexioHUD() const;
 
+	/** Called when a game round completes (someone emptied their hand). Handles scoring and round transition. */
+	void OnRoundComplete();
+
+	/** Timer callback fired after round-end delay to start the next game round. */
+	void OnRoundEndTimerFired();
+
 	UPROPERTY()
 	TObjectPtr<UHRBLexioGameState> LexioGameState;
 
@@ -64,6 +70,9 @@ private:
 
 	/** Timer handle for AI turn delay. */
 	FTimerHandle AITurnTimerHandle;
+
+	/** Timer handle for round-end delay before starting next round. */
+	FTimerHandle RoundEndTimerHandle;
 
 	static constexpr int32 HumanPlayerIndex = 0;
 };

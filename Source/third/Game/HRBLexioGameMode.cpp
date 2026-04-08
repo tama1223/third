@@ -84,7 +84,8 @@ bool AHRBLexioGameMode::ProcessHumanTurn(const TArray<FHRBCardData>& SelectedCar
 
 		if (LexioGameState->IsGameOver())
 		{
-			UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] === Game Over === Winner: Player %d"), LexioGameState->GetWinnerIndex());
+			UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] === Round Over === Winner: Player %d"), LexioGameState->GetWinnerIndex());
+			OnRoundComplete();
 			return true;
 		}
 
@@ -241,12 +242,61 @@ void AHRBLexioGameMode::ProcessAITurn()
 
 	if (LexioGameState->IsGameOver())
 	{
-		UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] === Game Over === Winner: Player %d"), LexioGameState->GetWinnerIndex());
+		UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] === Round Over === Winner: Player %d"), LexioGameState->GetWinnerIndex());
+		OnRoundComplete();
 		return;
 	}
 
 	// Continue to next turn
 	OnTurnAdvanced();
+}
+
+void AHRBLexioGameMode::OnRoundComplete()
+{
+	int32 Deltas[UHRBLexioGameState::NUM_PLAYERS];
+	LexioGameState->CalculateRoundScores(Deltas);
+
+	// Build score message
+	FString ScoreMsg = TEXT("Round Over! ");
+	for (int32 i = 0; i < UHRBLexioGameState::NUM_PLAYERS; ++i)
+	{
+		FString Name = (i == HumanPlayerIndex) ? TEXT("You") : FString::Printf(TEXT("AI %d"), i);
+		ScoreMsg += FString::Printf(TEXT("%s: %+d "), *Name, Deltas[i]);
+	}
+	ShowHUDMessage(ScoreMsg, 3.0f);
+
+	UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] %s"), *ScoreMsg);
+
+	if (!LexioGameState->IsAllRoundsComplete())
+	{
+		// Schedule next round after a delay
+		GetWorld()->GetTimerManager().SetTimer(
+			RoundEndTimerHandle,
+			this,
+			&AHRBLexioGameMode::OnRoundEndTimerFired,
+			3.5f,
+			false);
+	}
+	else
+	{
+		UE_LOG(LogHRBLexio, Log, TEXT("[HRBLexio] === All Rounds Complete ==="));
+	}
+}
+
+void AHRBLexioGameMode::OnRoundEndTimerFired()
+{
+	if (LexioGameState->StartNewGameRound())
+	{
+		// Pass updated state to HUD
+		AHRBLexioHUD* HUD = GetLexioHUD();
+		if (HUD)
+		{
+			HUD->SetGameState(LexioGameState);
+		}
+
+		ShowHUDMessage(TEXT("New Round!"), 2.0f);
+		OnTurnAdvanced();
+	}
 }
 
 void AHRBLexioGameMode::ShowHUDMessage(const FString& Message, float Duration)

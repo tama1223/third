@@ -47,6 +47,11 @@ private:
 	void DrawTurnInfo();
 	void DrawRoundInfo();
 	void DrawRankLegend();
+	void DrawScoreInfo();
+
+	// --- Suit Helpers ---
+	FLinearColor GetSuitColor(EHRBCardSuit Suit) const;
+	FString GetSuitSymbol(EHRBCardSuit Suit) const;
 
 	// --- Hit Test Helpers ---
 	FVector2D GetCardPosition(int32 Index, int32 TotalCards) const;

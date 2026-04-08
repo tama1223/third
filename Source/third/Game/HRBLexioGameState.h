@@ -20,8 +20,9 @@ class UHRBLexioGameState : public UObject
 
 public:
 	static constexpr int32 NUM_PLAYERS = 3;
+	static constexpr int32 MAX_GAME_ROUNDS = 3;
 
-	/** Initialize the game: create deck, shuffle, deal, pick random first player. */
+	/** Initialize the game: create deck, shuffle, deal, find Cloud 3 holder. */
 	void InitGame();
 
 	/**
@@ -76,6 +77,27 @@ public:
 	/** Get the current round's submission history. */
 	const TArray<FRoundHistoryEntry>& GetRoundHistory() const { return RoundHistory; }
 
+	/** Get a player's cumulative score. */
+	int32 GetPlayerScore(int32 PlayerIndex) const;
+
+	/** Get all scores as an array. */
+	void GetAllScores(int32 OutScores[NUM_PLAYERS]) const;
+
+	/** Get how many game rounds have been played. */
+	int32 GetGameRoundCount() const { return GameRoundCount; }
+
+	/** Get max game rounds. */
+	static constexpr int32 GetMaxGameRounds() { return MAX_GAME_ROUNDS; }
+
+	/** Calculate and apply scores for current round end. Returns score deltas. */
+	void CalculateRoundScores(int32 OutDeltas[NUM_PLAYERS]);
+
+	/** Start a new game round (reshuffle, redeal, find Cloud 3 holder). Returns true if more rounds remain. */
+	bool StartNewGameRound();
+
+	/** Check if all game rounds are complete. */
+	bool IsAllRoundsComplete() const { return GameRoundCount >= MAX_GAME_ROUNDS; }
+
 private:
 	/** Sort a player's hand by Lexio rank (3,4,5,6,7,8,9,1,2). */
 	void SortPlayerHand(int32 PlayerIndex);
@@ -92,7 +114,15 @@ private:
 	/** Check if a player has won (empty hand). */
 	bool CheckWinCondition(int32 PlayerIndex);
 
+	/** Find the player index who holds Cloud 3. Returns -1 if not found. */
+	int32 FindCloud3Holder() const;
+
 	TArray<FHRBCardData> PlayerHands[NUM_PLAYERS];
+
+	int32 PlayerScores[NUM_PLAYERS] = {0, 0, 0};
+
+	UPROPERTY()
+	int32 GameRoundCount = 0;
 
 	UPROPERTY()
 	int32 CurrentPlayerIndex = 0;

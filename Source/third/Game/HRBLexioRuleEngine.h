@@ -17,7 +17,7 @@ class UHRBLexioRuleEngine : public UObject
 	GENERATED_BODY()
 
 public:
-	/** Creates a standard 36-card deck (numbers 1~9, 4 copies each). */
+	/** Creates a standard 36-card deck (numbers 1~9, 4 suits each). */
 	TArray<FHRBCardData> CreateDeck() const;
 
 	/** Shuffles the given deck in place. */
@@ -40,10 +40,13 @@ public:
 
 	/**
 	 * Finds all valid combinations from the given hand.
-	 * If RequiredType is None, returns all Single/Pair/Triple combinations.
-	 * If RequiredType is specified, returns only that type.
+	 * If RequiredType is None, returns all Single/Pair/Triple/5-card combinations.
+	 * If RequiredType is specified, returns only that type (or all 5-card types if a 5-card type is specified).
 	 */
 	TArray<FHRBPlayedCombination> FindAllValidCombinations(
 		const TArray<FHRBCardData>& Hand,
 		EHRBCardCombinationType RequiredType = EHRBCardCombinationType::None) const;
+
+	/** Returns true if the type is a 5-card combination. */
+	static bool IsFiveCardType(EHRBCardCombinationType Type);
 };

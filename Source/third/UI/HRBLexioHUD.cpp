@@ -70,6 +70,7 @@ void AHRBLexioHUD::DrawHUD()
 
 	DrawAIInfo();
 	DrawRoundInfo();
+	DrawScoreInfo();
 	DrawTurnInfo();
 	DrawTableCombination();
 	DrawRankLegend();
@@ -97,8 +98,12 @@ void AHRBLexioHUD::DrawPlayerHand()
 		const float OffsetY = bSelected ? SelectedOffsetY : 0.0f;
 		const FVector2D DrawPos(Pos.X, Pos.Y + OffsetY);
 
+		// Suit color
+		const FLinearColor SuitCol = GetSuitColor(Hand[i].Suit);
+		const FLinearColor DarkSuitCol(SuitCol.R * 0.6f, SuitCol.G * 0.6f, SuitCol.B * 0.6f);
+
 		// Card border
-		const FLinearColor BorderColor = bSelected ? FLinearColor::Yellow : FLinearColor::Black;
+		const FLinearColor BorderColor = bSelected ? FLinearColor::Yellow : DarkSuitCol;
 		const float BorderThickness = bSelected ? 3.0f : 2.0f;
 
 		// Draw card background (white)
@@ -110,14 +115,22 @@ void AHRBLexioHUD::DrawPlayerHand()
 		DrawRect(BorderColor, DrawPos.X, DrawPos.Y, BorderThickness, CardSize.Y); // Left
 		DrawRect(BorderColor, DrawPos.X + CardSize.X - BorderThickness, DrawPos.Y, BorderThickness, CardSize.Y); // Right
 
-		// Draw card number centered
+		// Draw card number in suit color
 		const FString NumberStr = FString::Printf(TEXT("%d"), Hand[i].Number);
 		float TextW, TextH;
 		GetTextSize(NumberStr, TextW, TextH, HUDFont, 1.0f);
 
 		const float TextX = DrawPos.X + (CardSize.X - TextW) * 0.5f;
-		const float TextY = DrawPos.Y + (CardSize.Y - TextH) * 0.5f;
-		DrawText(NumberStr, FLinearColor::Black, TextX, TextY, HUDFont, 1.0f);
+		const float TextY = DrawPos.Y + (CardSize.Y - TextH) * 0.5f - 6.0f;
+		DrawText(NumberStr, SuitCol, TextX, TextY, HUDFont, 1.0f);
+
+		// Draw suit symbol below the number
+		const FString SuitSym = GetSuitSymbol(Hand[i].Suit);
+		float SuitW, SuitH;
+		GetTextSize(SuitSym, SuitW, SuitH, HUDFont, 0.7f);
+		const float SuitX = DrawPos.X + (CardSize.X - SuitW) * 0.5f;
+		const float SuitY = TextY + TextH + 1.0f;
+		DrawText(SuitSym, SuitCol, SuitX, SuitY, HUDFont, 0.7f);
 	}
 }
 
@@ -196,14 +209,26 @@ void AHRBLexioHUD::DrawTableCombination()
 			DrawRect(BorderCol, CardX, DrawY, BT, HistoryCardH);
 			DrawRect(BorderCol, CardX + HistoryCardW - BT, DrawY, BT, HistoryCardH);
 
-			const FString NumStr = FString::Printf(TEXT("%d"), Entry.Combination.Cards[c].Number);
+			const FHRBCardData& CardData = Entry.Combination.Cards[c];
+			const FLinearColor CardSuitCol = GetSuitColor(CardData.Suit);
+
+			// Draw card number in suit color
+			const FString NumStr = FString::Printf(TEXT("%d"), CardData.Number);
 			float TextW, TextH;
 			GetTextSize(NumStr, TextW, TextH, HUDFont, 1.5f);
-			const FLinearColor TextCol = FLinearColor::Black;
-			DrawText(NumStr, TextCol,
+			DrawText(NumStr, CardSuitCol,
 				CardX + (HistoryCardW - TextW) * 0.5f,
-				DrawY + (HistoryCardH - TextH) * 0.5f,
+				DrawY + (HistoryCardH - TextH) * 0.5f - 8.0f,
 				HUDFont, 1.5f);
+
+			// Draw suit symbol below the number
+			const FString CardSuitSym = GetSuitSymbol(CardData.Suit);
+			float SuitSymW, SuitSymH;
+			GetTextSize(CardSuitSym, SuitSymW, SuitSymH, HUDFont, 0.7f);
+			DrawText(CardSuitSym, CardSuitCol,
+				CardX + (HistoryCardW - SuitSymW) * 0.5f,
+				DrawY + (HistoryCardH - TextH) * 0.5f - 8.0f + TextH + 1.0f,
+				HUDFont, 0.7f);
 		}
 
 		DrawX += Entry.Combination.Cards.Num() * (HistoryCardW + InnerGap) - InnerGap;
@@ -243,6 +268,11 @@ void AHRBLexioHUD::DrawTableCombination()
 	case EHRBCardCombinationType::Single: TypeLabel = TEXT("Single"); break;
 	case EHRBCardCombinationType::Pair: TypeLabel = TEXT("Pair"); break;
 	case EHRBCardCombinationType::Triple: TypeLabel = TEXT("Triple"); break;
+	case EHRBCardCombinationType::Straight: TypeLabel = TEXT("Straight"); break;
+	case EHRBCardCombinationType::Flush: TypeLabel = TEXT("Flush"); break;
+	case EHRBCardCombinationType::FullHouse: TypeLabel = TEXT("Full House"); break;
+	case EHRBCardCombinationType::FourOfAKind: TypeLabel = TEXT("Four of a Kind"); break;
+	case EHRBCardCombinationType::StraightFlush: TypeLabel = TEXT("Straight Flush"); break;
 	default: TypeLabel = TEXT(""); break;
 	}
 
@@ -329,7 +359,7 @@ void AHRBLexioHUD::DrawAIInfo()
 void AHRBLexioHUD::DrawTurnInfo()
 {
 	const float CenterX = CachedViewportSize.X * 0.5f;
-	const float TopY = 60.0f;
+	const float TopY = 70.0f;
 
 	// Current turn
 	const int32 CurrentPlayer = GameState->GetCurrentPlayerIndex();
@@ -466,20 +496,21 @@ void AHRBLexioHUD::DrawGameOverMessage()
 	const float InfoStartY = CenterY + 20.0f;
 	const float LineHeight = 30.0f;
 
+	const FLinearColor PlayerColors[UHRBLexioGameState::NUM_PLAYERS] = {
+		FLinearColor(0.2f, 0.8f, 0.3f),   // You - green
+		FLinearColor(1.0f, 0.4f, 0.4f),    // AI 1 - red
+		FLinearColor(0.4f, 0.6f, 1.0f)     // AI 2 - blue
+	};
+	const FString PlayerNames[UHRBLexioGameState::NUM_PLAYERS] = {
+		TEXT("You"), TEXT("AI 1"), TEXT("AI 2")
+	};
+
 	for (int32 i = 0; i < UHRBLexioGameState::NUM_PLAYERS; ++i)
 	{
 		const int32 CardsLeft = GameState->GetPlayerHand(i).Num();
-		FString PlayerName;
-		if (i == HumanPlayerIndex)
-		{
-			PlayerName = TEXT("You");
-		}
-		else
-		{
-			PlayerName = FString::Printf(TEXT("AI %d"), i);
-		}
+		const int32 Score = GameState->GetPlayerScore(i);
 
-		FString InfoText = FString::Printf(TEXT("%s: %d cards remaining"), *PlayerName, CardsLeft);
+		FString InfoText = FString::Printf(TEXT("%s: %d cards remaining | Score: %d"), *PlayerNames[i], CardsLeft, Score);
 		FLinearColor InfoColor = (i == Winner) ? FLinearColor(0.3f, 1.0f, 0.3f) : FLinearColor(0.8f, 0.8f, 0.8f);
 
 		float InfoW, InfoH;
@@ -487,79 +518,178 @@ void AHRBLexioHUD::DrawGameOverMessage()
 		DrawText(InfoText, InfoColor, CenterX - InfoW * 0.5f, InfoStartY + i * LineHeight, HUDFont, 1.2f);
 	}
 
-	// "GAME OVER" subtitle
-	FString GameOverText = TEXT("GAME OVER");
-	float GOW, GOH;
-	GetTextSize(GameOverText, GOW, GOH, HUDFont, 1.0f);
-	DrawText(GameOverText, FLinearColor(0.6f, 0.6f, 0.6f), CenterX - GOW * 0.5f, CenterY - 90.0f, HUDFont, 1.0f);
+	// Check if all game rounds are complete
+	const float BottomInfoY = InfoStartY + UHRBLexioGameState::NUM_PLAYERS * LineHeight + 20.0f;
+
+	if (GameState->IsAllRoundsComplete())
+	{
+		// FINAL RESULT header
+		FString FinalText = TEXT("FINAL RESULT");
+		float FTW, FTH;
+		GetTextSize(FinalText, FTW, FTH, HUDFont, 1.0f);
+		DrawText(FinalText, FLinearColor(1.0f, 0.85f, 0.0f), CenterX - FTW * 0.5f, CenterY - 90.0f, HUDFont, 1.0f);
+
+		// Find overall winner (highest score)
+		int32 BestPlayer = 0;
+		int32 BestScore = GameState->GetPlayerScore(0);
+		for (int32 i = 1; i < UHRBLexioGameState::NUM_PLAYERS; ++i)
+		{
+			const int32 S = GameState->GetPlayerScore(i);
+			if (S > BestScore)
+			{
+				BestScore = S;
+				BestPlayer = i;
+			}
+		}
+
+		FString OverallWinner = FString::Printf(TEXT("Overall Winner: %s (%d pts)"), *PlayerNames[BestPlayer], BestScore);
+		float OWW, OWH;
+		GetTextSize(OverallWinner, OWW, OWH, HUDFont, 1.2f);
+		DrawText(OverallWinner, PlayerColors[BestPlayer], CenterX - OWW * 0.5f, BottomInfoY, HUDFont, 1.2f);
+	}
+	else
+	{
+		// GAME OVER subtitle (round complete, more rounds to go)
+		FString GameOverText = TEXT("HAND COMPLETE");
+		float GOW, GOH;
+		GetTextSize(GameOverText, GOW, GOH, HUDFont, 1.0f);
+		DrawText(GameOverText, FLinearColor(0.6f, 0.6f, 0.6f), CenterX - GOW * 0.5f, CenterY - 90.0f, HUDFont, 1.0f);
+
+		FString NextRoundText = TEXT("Round Complete - Next round starting...");
+		float NRW, NRH;
+		GetTextSize(NextRoundText, NRW, NRH, HUDFont, 1.0f);
+		DrawText(NextRoundText, FLinearColor(0.8f, 0.8f, 0.5f), CenterX - NRW * 0.5f, BottomInfoY, HUDFont, 1.0f);
+	}
 }
 
 void AHRBLexioHUD::DrawRankLegend()
 {
-	// 화면 좌측 중간에 카드 모양으로 서열 표시
 	const float StartX = 20.0f;
 	const float StartY = CachedViewportSize.Y * 0.45f;
-	const float LegendCardW = 50.0f;
-	const float LegendCardH = 68.0f;
-	const float LegendGap = 8.0f;
-	const float BT = 1.5f;
+	const float LineHeight = 22.0f;
+	const FLinearColor LabelColor(0.7f, 0.7f, 0.5f);
 
-	// "Rank" 라벨
-	DrawText(TEXT("Rank (weak -> strong)"), FLinearColor(0.7f, 0.7f, 0.5f), StartX, StartY - 30.0f, HUDFont, 1.0f);
+	// Line 1: Number rank
+	DrawText(TEXT("Rank: 3 < 4 < 5 < 6 < 7 < 8 < 9 < 1 < 2"), LabelColor, StartX, StartY, HUDFont, 0.9f);
 
-	// 족보 종류 표시 (카드 아래)
-	const float ComboY = StartY + LegendCardH + 15.0f;
-	DrawText(TEXT("Single: 1 card  |  Pair: same x2  |  Triple: same x3"),
-		FLinearColor(0.6f, 0.6f, 0.45f, 0.9f), StartX, ComboY, HUDFont, 0.9f);
+	// Line 2: Suit rank with colored suit names
+	const float SuitLineY = StartY + LineHeight;
+	float CurX = StartX;
 
-	// 서열 순서: 3,4,5,6,7,8,9,1,2
-	const int32 RankOrder[] = { 3, 4, 5, 6, 7, 8, 9, 1, 2 };
+	const FString SuitPrefix = TEXT("Suit: ");
+	float PrefW, PrefH;
+	GetTextSize(SuitPrefix, PrefW, PrefH, HUDFont, 0.9f);
+	DrawText(SuitPrefix, LabelColor, CurX, SuitLineY, HUDFont, 0.9f);
+	CurX += PrefW;
 
-	for (int32 i = 0; i < 9; ++i)
-	{
-		const float CardX = StartX + i * (LegendCardW + LegendGap);
-		const float CardY = StartY;
+	// Cloud
+	const FString CloudText = TEXT("Cloud");
+	float TmpW, TmpH;
+	GetTextSize(CloudText, TmpW, TmpH, HUDFont, 0.9f);
+	DrawText(CloudText, GetSuitColor(EHRBCardSuit::Cloud), CurX, SuitLineY, HUDFont, 0.9f);
+	CurX += TmpW;
 
-		// 카드 배경 (약한 쪽은 어둡고 강한 쪽은 밝게)
-		const float Brightness = 0.6f + 0.4f * (static_cast<float>(i) / 8.0f);
-		const FLinearColor CardBg(Brightness * 0.9f, Brightness * 0.95f, Brightness, 0.9f);
-		DrawRect(CardBg, CardX, CardY, LegendCardW, LegendCardH);
+	const FString Sep1 = TEXT(" < ");
+	GetTextSize(Sep1, TmpW, TmpH, HUDFont, 0.9f);
+	DrawText(Sep1, LabelColor, CurX, SuitLineY, HUDFont, 0.9f);
+	CurX += TmpW;
 
-		// 테두리
-		const FLinearColor BorderColor(0.3f, 0.35f, 0.3f);
-		DrawRect(BorderColor, CardX, CardY, LegendCardW, BT);
-		DrawRect(BorderColor, CardX, CardY + LegendCardH - BT, LegendCardW, BT);
-		DrawRect(BorderColor, CardX, CardY, BT, LegendCardH);
-		DrawRect(BorderColor, CardX + LegendCardW - BT, CardY, BT, LegendCardH);
+	// Star
+	const FString StarText = TEXT("Star");
+	GetTextSize(StarText, TmpW, TmpH, HUDFont, 0.9f);
+	DrawText(StarText, GetSuitColor(EHRBCardSuit::Star), CurX, SuitLineY, HUDFont, 0.9f);
+	CurX += TmpW;
 
-		// 숫자
-		const FString NumStr = FString::Printf(TEXT("%d"), RankOrder[i]);
-		float TextW, TextH;
-		GetTextSize(NumStr, TextW, TextH, HUDFont, 1.2f);
-		DrawText(NumStr, FLinearColor::Black,
-			CardX + (LegendCardW - TextW) * 0.5f,
-			CardY + (LegendCardH - TextH) * 0.5f,
-			HUDFont, 1.2f);
+	GetTextSize(Sep1, TmpW, TmpH, HUDFont, 0.9f);
+	DrawText(Sep1, LabelColor, CurX, SuitLineY, HUDFont, 0.9f);
+	CurX += TmpW;
 
-		// 화살표 (마지막 카드 뒤에는 안 그림)
-		if (i < 8)
-		{
-			const float ArrowX = CardX + LegendCardW + 1.0f;
-			DrawText(TEXT("<"), FLinearColor(0.6f, 0.6f, 0.4f),
-				ArrowX, CardY + LegendCardH * 0.5f - 10.0f, HUDFont, 0.9f);
-		}
-	}
+	// Moon
+	const FString MoonText = TEXT("Moon");
+	GetTextSize(MoonText, TmpW, TmpH, HUDFont, 0.9f);
+	DrawText(MoonText, GetSuitColor(EHRBCardSuit::Moon), CurX, SuitLineY, HUDFont, 0.9f);
+	CurX += TmpW;
+
+	GetTextSize(Sep1, TmpW, TmpH, HUDFont, 0.9f);
+	DrawText(Sep1, LabelColor, CurX, SuitLineY, HUDFont, 0.9f);
+	CurX += TmpW;
+
+	// Sun
+	const FString SunText = TEXT("Sun");
+	GetTextSize(SunText, TmpW, TmpH, HUDFont, 0.9f);
+	DrawText(SunText, GetSuitColor(EHRBCardSuit::Sun), CurX, SuitLineY, HUDFont, 0.9f);
+
+	// Line 3: 5-card combo rank
+	const float ComboLineY = SuitLineY + LineHeight;
+	DrawText(TEXT("5-Card: Straight < Flush < Full House < 4-Kind < St.Flush"),
+		FLinearColor(0.6f, 0.6f, 0.45f, 0.9f), StartX, ComboLineY, HUDFont, 0.9f);
 }
 
 void AHRBLexioHUD::DrawRoundInfo()
 {
 	const float CenterX = CachedViewportSize.X * 0.5f;
-	const float TopY = 30.0f;
+	const float TopY = 45.0f;
 
-	const FString RoundText = FString::Printf(TEXT("Round %d"), GameState->GetRoundNumber());
+	const FString RoundText = FString::Printf(TEXT("Hand %d"), GameState->GetRoundNumber());
 	float TextW, TextH;
 	GetTextSize(RoundText, TextW, TextH, HUDFont, 1.0f);
 	DrawText(RoundText, FLinearColor(0.8f, 0.8f, 0.4f), CenterX - TextW * 0.5f, TopY, HUDFont, 1.0f);
+}
+
+void AHRBLexioHUD::DrawScoreInfo()
+{
+	const float CenterX = CachedViewportSize.X * 0.5f;
+	const float TopY = 5.0f;
+
+	// Game round info
+	const int32 GameRound = GameState->GetGameRoundCount();
+	const int32 MaxRounds = UHRBLexioGameState::MAX_GAME_ROUNDS;
+	const FString GameRoundText = FString::Printf(TEXT("Game Round: %d/%d"), GameRound, MaxRounds);
+	float GRW, GRH;
+	GetTextSize(GameRoundText, GRW, GRH, HUDFont, 0.8f);
+	DrawText(GameRoundText, FLinearColor(0.6f, 0.7f, 0.8f), CenterX - GRW * 0.5f, TopY, HUDFont, 0.8f);
+
+	// Score display
+	const int32 ScoreYou = GameState->GetPlayerScore(0);
+	const int32 ScoreAI1 = GameState->GetPlayerScore(1);
+	const int32 ScoreAI2 = GameState->GetPlayerScore(2);
+
+	const float ScoreY = TopY + GRH + 2.0f;
+	float CurX = CenterX;
+
+	// Pre-calculate total width for centering
+	const FString ScoreLabel = TEXT("Score: ");
+	const FString YouScore = FString::Printf(TEXT("You: %d"), ScoreYou);
+	const FString AI1Score = FString::Printf(TEXT("AI 1: %d"), ScoreAI1);
+	const FString AI2Score = FString::Printf(TEXT("AI 2: %d"), ScoreAI2);
+	const FString Separator = TEXT(" | ");
+
+	float SLW, SLH, YSW, YSH, A1W, A1H, A2W, A2H, SepW, SepH;
+	GetTextSize(ScoreLabel, SLW, SLH, HUDFont, 0.8f);
+	GetTextSize(YouScore, YSW, YSH, HUDFont, 0.8f);
+	GetTextSize(Separator, SepW, SepH, HUDFont, 0.8f);
+	GetTextSize(AI1Score, A1W, A1H, HUDFont, 0.8f);
+	GetTextSize(AI2Score, A2W, A2H, HUDFont, 0.8f);
+
+	const float TotalScoreW = SLW + YSW + SepW + A1W + SepW + A2W;
+	CurX = CenterX - TotalScoreW * 0.5f;
+
+	DrawText(ScoreLabel, FLinearColor(0.7f, 0.7f, 0.7f), CurX, ScoreY, HUDFont, 0.8f);
+	CurX += SLW;
+
+	DrawText(YouScore, FLinearColor(0.2f, 0.8f, 0.3f), CurX, ScoreY, HUDFont, 0.8f);
+	CurX += YSW;
+
+	DrawText(Separator, FLinearColor(0.5f, 0.5f, 0.5f), CurX, ScoreY, HUDFont, 0.8f);
+	CurX += SepW;
+
+	DrawText(AI1Score, FLinearColor(1.0f, 0.4f, 0.4f), CurX, ScoreY, HUDFont, 0.8f);
+	CurX += A1W;
+
+	DrawText(Separator, FLinearColor(0.5f, 0.5f, 0.5f), CurX, ScoreY, HUDFont, 0.8f);
+	CurX += SepW;
+
+	DrawText(AI2Score, FLinearColor(0.4f, 0.6f, 1.0f), CurX, ScoreY, HUDFont, 0.8f);
 }
 
 FVector2D AHRBLexioHUD::GetCardPosition(int32 Index, int32 TotalCards) const
@@ -584,6 +714,30 @@ bool AHRBLexioHUD::IsPointInRect(const FVector2D& Point, const FVector2D& RectPo
 {
 	return Point.X >= RectPos.X && Point.X <= RectPos.X + RectSize.X
 		&& Point.Y >= RectPos.Y && Point.Y <= RectPos.Y + RectSize.Y;
+}
+
+FLinearColor AHRBLexioHUD::GetSuitColor(EHRBCardSuit Suit) const
+{
+	switch (Suit)
+	{
+	case EHRBCardSuit::Cloud: return FLinearColor(0.5f, 0.55f, 0.65f);
+	case EHRBCardSuit::Star:  return FLinearColor(0.85f, 0.75f, 0.2f);
+	case EHRBCardSuit::Moon:  return FLinearColor(0.3f, 0.7f, 0.4f);
+	case EHRBCardSuit::Sun:   return FLinearColor(0.85f, 0.25f, 0.2f);
+	default:                  return FLinearColor::White;
+	}
+}
+
+FString AHRBLexioHUD::GetSuitSymbol(EHRBCardSuit Suit) const
+{
+	switch (Suit)
+	{
+	case EHRBCardSuit::Cloud: return TEXT("C");
+	case EHRBCardSuit::Star:  return TEXT("S");
+	case EHRBCardSuit::Moon:  return TEXT("M");
+	case EHRBCardSuit::Sun:   return TEXT("R");
+	default:                  return TEXT("?");
+	}
 }
 
 void AHRBLexioHUD::HandleClick(const FVector2D& ClickPosition)

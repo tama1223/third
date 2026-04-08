@@ -1,0 +1,129 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type PreToolUse --summarize"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type PostToolUse --summarize"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type Notification --summarize"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type Stop --add-chat"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type SubagentStop"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type SubagentStart"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type PreCompact"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type UserPromptSubmit --summarize"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type SessionStart"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type SessionEnd"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type PermissionRequest --summarize"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run C:/Users/tama/workspace/ue5/toy/claude-code-hooks-multi-agent-observability-main/.claude/hooks/send_event.py --source-app vibe --event-type PostToolUseFailure --summarize"
+          }
+        ]
+      }
+    ]
+  }
+}
